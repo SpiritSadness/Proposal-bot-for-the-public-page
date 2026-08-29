@@ -1,16 +1,23 @@
 {
-  "name": "bot",
+  "name": "telegram-proposal-bot",
   "version": "1.0.0",
-  "description": "",
+  "description": "Telegram proposal bot for public pages — submissions, anti-spam, broadcasts",
   "main": "bot.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node bot.js",
+    "dev": "node bot.js"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "keywords": [
+    "telegram",
+    "bot",
+    "proposal",
+    "broadcast"
+  ],
+  "author": "Andrey Zabrodin",
+  "license": "MIT",
   "type": "commonjs",
   "dependencies": {
+    "dotenv": "^16.4.7",
     "node-telegram-bot-api": "^0.66.0"
   }
 }

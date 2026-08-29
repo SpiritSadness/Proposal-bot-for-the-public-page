@@ -1,63 +1,72 @@
-# 🤖 Telegram Bot - Предложка для паблика
+# Telegram Proposal Bot
 
-Простой и эффективный Telegram бот для сбора предложений от пользователей. Все сообщения автоматически пересылаются администратору.
+Bot for a public page / community: users send proposals (text or media), the admin gets them in private chat and can reply. Includes anti-spam, optional news broadcast, and basic admin stats.
 
-## ✨ Возможности
+## Features
 
-- 📨 **Пересылка сообщений** - все сообщения от пользователей приходят администратору в ЛС
-- 🛡️ **Антиспам система** - ограничение: 1 сообщение в 10 секунд  
-- 📢 **Система рассылки** - массовая отправка сообщений подписчикам
-- 💬 **Ответы пользователям** - возможность ответить на предложение
-- 📊 **Статистика** - просмотр статистики бота
-- 🔔 **Уведомления** - подписка на рассылку от администратора
+- Forward user proposals (text, photo, video, documents, voice, stickers) to the admin
+- Anti-spam: 1 message per 10 seconds
+- `/subscribe` / `/unsubscribe` mailing list
+- Admin `/broadcast` to subscribers
+- Reply to a user from the admin chat
+- `/stats` and `/subscribers` for the admin
 
-## 🚀 Быстрый старт
-Настройка бота:
-Замени в файле index.js:
+## Stack
 
-javascript
-const BOT_TOKEN = 'твой_токен_бота';
-const YOUR_USERNAME = 'Andrey720p';
+- Node.js
+- [`node-telegram-bot-api`](https://github.com/yagop/node-telegram-bot-api)
+- Config via `.env` (token is never committed)
 
-Запуск:
-bash
-node index.js
+## Setup
 
- Команды
-Для пользователей:
-/start - начать работу
+1. Create a bot with [@BotFather](https://t.me/BotFather) and copy the token.
+2. Clone the repo and install dependencies:
 
-/subscribe - подписаться на рассылку
-
-/unsubscribe - отписаться
-
-/help - помощь
-
-Для администратора:
-/stats - статистика бота
-
-/broadcast - рассылка
-
-/subscribers - список подписчиков
-
-🎯 Как использовать
-Пользователи: просто отправляют сообщения боту
-
-Администратор: получает все предложения в ЛС с кнопкой "💬 Ответить"
-
-🌐 Деплой
-Railway (рекомендуется для 24/7)
-Создай проект на railway.app
-
-Подключи GitHub репозиторий
-
-Добавь переменную BOT_TOKEN в настройках
-
-Локальный запуск
-bash
-node index.js
-
-⭐ Если бот полезен - поставь звезду на GitHub!
-
-### Установка зависимостей
+```bash
 npm install
+cp .env.example .env
+```
+
+3. Edit `.env`:
+
+```env
+BOT_TOKEN=your_token_here
+ADMIN_USERNAME=Andrey720p
+```
+
+4. Run:
+
+```bash
+npm start
+```
+
+## Commands
+
+**Users**
+
+| Command | Description |
+|---------|-------------|
+| `/start` | Welcome / how to use |
+| `/help` | Help |
+| `/subscribe` | Subscribe to broadcasts |
+| `/unsubscribe` | Unsubscribe |
+
+**Admin** (Telegram username from `ADMIN_USERNAME`)
+
+| Command | Description |
+|---------|-------------|
+| `/stats` | Simple stats |
+| `/broadcast` | Send a message to all subscribers |
+| `/subscribers` | List subscribers |
+| `/cancel` | Cancel reply/broadcast mode |
+
+Flow: user sends anything → admin receives it → optional **Reply** button.
+
+## Notes
+
+- Subscribers and anti-spam state live **in memory** (reset on restart). Fine for a small page bot; use a DB if you need persistence.
+- Never commit `.env` or real tokens. If a token was ever pushed to GitHub, revoke it in BotFather and create a new one.
+
+## License
+
+MIT

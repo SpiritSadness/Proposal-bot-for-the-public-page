@@ -1,397 +1,345 @@
+require('dotenv').config();
 const TelegramBot = require('node-telegram-bot-api');
 
-const BOT_TOKEN = '8407119460:AAHfNWjQojYn6JpbA_WmznRimybUfndU424';
-const YOUR_USERNAME = 'Andrey720p';
+const BOT_TOKEN = process.env.BOT_TOKEN;
+const ADMIN_USERNAME = (process.env.ADMIN_USERNAME || '').replace(/^@/, '');
+
+if (!BOT_TOKEN) {
+  console.error('Missing BOT_TOKEN. Copy .env.example to .env and set your token.');
+  process.exit(1);
+}
+
+if (!ADMIN_USERNAME) {
+  console.error('Missing ADMIN_USERNAME in .env');
+  process.exit(1);
+}
 
 const bot = new TelegramBot(BOT_TOKEN, { polling: true });
 
-// Хранилища данных
 let adminChatId = null;
-const userLastMessage = new Map(); // Для антиспама
-const subscribers = new Set(); // Для рассылки
-const userStates = new Map(); // Для состояний пользователей
+const userLastMessage = new Map();
+const subscribers = new Set();
+const userStates = new Map();
 
-// Антиспам - проверка временного интервала
+function isAdmin(user) {
+  return user && user.username === ADMIN_USERNAME;
+}
+
 function isSpam(userId) {
   const lastMessageTime = userLastMessage.get(userId);
   const now = Date.now();
-  
-  if (lastMessageTime && (now - lastMessageTime) < 10000) { // 10 секунд
+
+  if (lastMessageTime && now - lastMessageTime < 10000) {
     return true;
   }
-  
+
   userLastMessage.set(userId, now);
   return false;
 }
 
-// Команда старт
 bot.onText(/\/start/, (msg) => {
   const chatId = msg.chat.id;
   const user = msg.from;
-  
-  if (user.username === YOUR_USERNAME) {
+
+  if (isAdmin(user)) {
     adminChatId = chatId;
-    bot.sendMessage(chatId, 
-      `👑 Режим администратора активирован!\n\n` +
-      `Доступные команды:\n` +
-      `📊 /stats - статистика\n` +
-      `📢 /broadcast - рассылка\n` +
-      `👥 /subscribers - список подписчиков`
+    bot.sendMessage(
+      chatId,
+      'Режим администратора активирован.\n\n' +
+        'Команды:\n' +
+        '/stats — статистика\n' +
+        '/broadcast — рассылка\n' +
+        '/subscribers — список подписчиков'
     );
-  } else {
-    const welcomeText = 
-      `👋 Привет, ${user.first_name}!\n\n` +
-      `Это бот-предложка. Ты можешь:\n` +
-      `💬 Отправить текст, фото, видео или файлы\n` +
-      `📰 /subscribe - подписаться на рассылку\n` +
-      `❓ /help - помощь\n\n` +
-      `Просто напиши или отправь что-нибудь!`;
-    
-    bot.sendMessage(chatId, welcomeText);
+    return;
   }
+
+  bot.sendMessage(
+    chatId,
+    `Привет, ${user.first_name}!\n\n` +
+      'Это бот-предложка. Ты можешь:\n' +
+      '• отправить текст, фото, видео или файлы\n' +
+      '• /subscribe — подписаться на рассылку\n' +
+      '• /help — помощь\n\n' +
+      'Просто напиши или отправь что-нибудь.'
+  );
 });
 
-// Команда подписки на рассылку
 bot.onText(/\/subscribe/, (msg) => {
   const chatId = msg.chat.id;
   const user = msg.from;
-  
+
   if (subscribers.has(chatId)) {
-    bot.sendMessage(chatId, '✅ Вы уже подписаны на рассылку!');
+    bot.sendMessage(chatId, 'Вы уже подписаны на рассылку.');
     return;
   }
-  
+
   subscribers.add(chatId);
-  bot.sendMessage(chatId, 
-    `📰 Вы успешно подписались на рассылку!\n\n` +
-    `Теперь вы будете получать важные объявления и новости от администратора.`
+  bot.sendMessage(
+    chatId,
+    'Вы подписались на рассылку.\n' +
+      'Будете получать объявления от администратора.'
   );
-  
-  // Уведомляем админа о новой подписке
+
   if (adminChatId) {
-    bot.sendMessage(adminChatId, 
-      `🆕 Новый подписчик!\n` +
-      `👤 ${user.first_name}${user.last_name ? ' ' + user.last_name : ''}\n` +
-      `🆔 ID: ${user.id}\n` +
-      `📱 @${user.username || 'нет username'}\n` +
-      `👥 Всего подписчиков: ${subscribers.size}`
+    bot.sendMessage(
+      adminChatId,
+      'Новый подписчик\n' +
+        `Имя: ${user.first_name}${user.last_name ? ' ' + user.last_name : ''}\n` +
+        `ID: ${user.id}\n` +
+        `@${user.username || 'нет username'}\n` +
+        `Всего подписчиков: ${subscribers.size}`
     );
   }
 });
 
-// Команда отписки от рассылки
 bot.onText(/\/unsubscribe/, (msg) => {
   const chatId = msg.chat.id;
-  
+
   if (subscribers.has(chatId)) {
     subscribers.delete(chatId);
-    bot.sendMessage(chatId, '❌ Вы отписались от рассылки.');
+    bot.sendMessage(chatId, 'Вы отписались от рассылки.');
   } else {
-    bot.sendMessage(chatId, 'ℹ️ Вы не были подписаны на рассылку.');
+    bot.sendMessage(chatId, 'Вы не были подписаны на рассылку.');
   }
 });
 
-// Команда помощи
 bot.onText(/\/help/, (msg) => {
-  const chatId = msg.chat.id;
-  bot.sendMessage(chatId, 
-    `❓ Как пользоваться ботом:\n\n` +
-    `• Просто отправь сообщение - оно придёт админу\n` +
-    `• Можно отправлять текст, фото, видео, файлы\n` +
-    `• Антиспам: 1 сообщение в 10 секунд\n` +
-    `• /subscribe - подписаться на новости\n` +
-    `• /unsubscribe - отписаться от новостей`
+  bot.sendMessage(
+    msg.chat.id,
+    'Как пользоваться ботом:\n\n' +
+      '• Отправь сообщение — оно придёт админу\n' +
+      '• Можно слать текст, фото, видео, файлы\n' +
+      '• Антиспам: 1 сообщение в 10 секунд\n' +
+      '• /subscribe — подписаться на новости\n' +
+      '• /unsubscribe — отписаться'
   );
 });
 
-// ИСПРАВЛЕННАЯ КОМАНДА СТАТИСТИКИ
 bot.onText(/\/stats/, async (msg) => {
-  if (msg.from.username !== YOUR_USERNAME) return;
-  
+  if (!isAdmin(msg.from)) return;
+
   try {
-    // Получаем информацию о боте
-    const botInfo = await bot.getMe();
-    
-    // Получаем количество участников чата с ботом
-    const membersCount = await bot.getChatMembersCount(botInfo.id);
-    
-    // Статистика
-    const statsMessage = 
-      `📊 Статистика бота:\n\n` +
-      `👥 Всего пользователей: ${membersCount}\n` +
-      `📰 Подписчиков рассылки: ${subscribers.size}\n` +
-      `⏰ Время работы: ${Math.floor(process.uptime() / 60)} минут\n` +
-      `📈 Активных сессий: ${userLastMessage.size}`;
-    
+    const statsMessage =
+      'Статистика бота:\n\n' +
+      `Подписчиков рассылки: ${subscribers.size}\n` +
+      `Время работы: ${Math.floor(process.uptime() / 60)} мин\n` +
+      `Активных сессий: ${userLastMessage.size}`;
+
     bot.sendMessage(msg.chat.id, statsMessage);
-    
   } catch (error) {
-    console.log('Ошибка при получении статистики:', error);
-    
-    // Альтернативная статистика если API не доступно
-    const fallbackStats = 
-      `📊 Статистика бота:\n\n` +
-      `📰 Подписчиков рассылки: ${subscribers.size}\n` +
-      `⏰ Время работы: ${Math.floor(process.uptime() / 60)} минут\n` +
-      `📈 Активных сессий: ${userLastMessage.size}\n\n` +
-      `ℹ️ Некоторые данные могут быть неполными`;
-    
-    bot.sendMessage(msg.chat.id, fallbackStats);
+    console.error('Stats error:', error.message);
+    bot.sendMessage(msg.chat.id, 'Не удалось получить статистику.');
   }
 });
 
-// Список подписчиков для админа
 bot.onText(/\/subscribers/, (msg) => {
-  if (msg.from.username !== YOUR_USERNAME) return;
-  
+  if (!isAdmin(msg.from)) return;
+
   if (subscribers.size === 0) {
-    bot.sendMessage(msg.chat.id, '❌ Нет подписчиков на рассылку.');
+    bot.sendMessage(msg.chat.id, 'Нет подписчиков на рассылку.');
     return;
   }
-  
-  let subscribersList = `📰 Список подписчиков (${subscribers.size}):\n\n`;
-  
-  // Получаем информацию о каждом подписчике
+
+  let subscribersList = `Подписчики (${subscribers.size}):\n\n`;
   let count = 0;
   const subscriberIds = Array.from(subscribers);
-  
+
   function getNextSubscriber() {
     if (count >= subscriberIds.length) return;
-    
+
     const subId = subscriberIds[count];
-    bot.getChat(subId).then(chat => {
-      subscribersList += `${count + 1}. ${chat.first_name || 'Пользователь'} (ID: ${chat.id})`;
-      if (chat.username) subscribersList += ` @${chat.username}`;
-      subscribersList += '\n';
-      
-      count++;
-      if (count < subscriberIds.length) {
-        getNextSubscriber();
-      } else {
-        bot.sendMessage(msg.chat.id, subscribersList);
-      }
-    }).catch(err => {
-      subscribersList += `${count + 1}. Не удалось получить данные (ID: ${subId})\n`;
-      count++;
-      if (count < subscriberIds.length) {
-        getNextSubscriber();
-      } else {
-        bot.sendMessage(msg.chat.id, subscribersList);
-      }
-    });
+    bot
+      .getChat(subId)
+      .then((chat) => {
+        subscribersList += `${count + 1}. ${chat.first_name || 'Пользователь'} (ID: ${chat.id})`;
+        if (chat.username) subscribersList += ` @${chat.username}`;
+        subscribersList += '\n';
+
+        count += 1;
+        if (count < subscriberIds.length) {
+          getNextSubscriber();
+        } else {
+          bot.sendMessage(msg.chat.id, subscribersList);
+        }
+      })
+      .catch(() => {
+        subscribersList += `${count + 1}. Не удалось получить данные (ID: ${subId})\n`;
+        count += 1;
+        if (count < subscriberIds.length) {
+          getNextSubscriber();
+        } else {
+          bot.sendMessage(msg.chat.id, subscribersList);
+        }
+      });
   }
-  
+
   getNextSubscriber();
 });
 
-// Рассылка для админа
 bot.onText(/\/broadcast/, (msg) => {
-  if (msg.from.username !== YOUR_USERNAME) return;
-  
+  if (!isAdmin(msg.from)) return;
+
   userStates.set(msg.chat.id, { mode: 'broadcast' });
-  bot.sendMessage(msg.chat.id, 
-    `📢 Режим рассылки\n\n` +
-    `Введите сообщение для отправки ${subscribers.size} подписчикам:\n\n` +
-    `❌ Отправьте /cancel для отмены`
+  bot.sendMessage(
+    msg.chat.id,
+    `Режим рассылки\n\nВведите сообщение для ${subscribers.size} подписчиков.\n` +
+      '/cancel — отмена'
   );
 });
 
-// Отмена действий
 bot.onText(/\/cancel/, (msg) => {
   const chatId = msg.chat.id;
-  
+
   if (userStates.has(chatId)) {
     userStates.delete(chatId);
-    bot.sendMessage(chatId, '❌ Действие отменено.');
+    bot.sendMessage(chatId, 'Действие отменено.');
   }
 });
 
-// Ответ на предложения для админа
-bot.onText(/\/reply_(.+)/, (msg, match) => {
-  if (msg.from.username !== YOUR_USERNAME) return;
-  
-  const targetUserId = match[1];
-  userStates.set(msg.chat.id, { mode: 'reply', targetUserId });
-  bot.sendMessage(msg.chat.id, 
-    `💬 Введите ответ для пользователя ${targetUserId}:\n\n` +
-    `❌ /cancel - отмена`
-  );
-});
-
-// Обработка всех сообщений
 bot.on('message', (msg) => {
   const chatId = msg.chat.id;
   const user = msg.from;
-  
-  // Игнорируем команды
+
   if (msg.text && msg.text.startsWith('/')) {
     return;
   }
-  
-  // Режим ответа от админа
-  if (user.username === YOUR_USERNAME && userStates.has(chatId)) {
+
+  if (isAdmin(user) && userStates.has(chatId)) {
     const state = userStates.get(chatId);
-    
+
     if (state.mode === 'reply') {
-      bot.sendMessage(state.targetUserId, 
-        `📨 Ответ от администратора:\n\n${msg.text}`
-      );
-      bot.sendMessage(chatId, '✅ Ответ отправлен пользователю!');
+      bot.sendMessage(state.targetUserId, `Ответ от администратора:\n\n${msg.text}`);
+      bot.sendMessage(chatId, 'Ответ отправлен.');
       userStates.delete(chatId);
       return;
     }
-    
+
     if (state.mode === 'broadcast') {
       broadcastMessage(msg.text, chatId);
       userStates.delete(chatId);
       return;
     }
   }
-  
-  // Если сообщение от админа без специального режима
-  if (user.username === YOUR_USERNAME) {
-    bot.sendMessage(chatId, 'ℹ️ Используйте команды для управления ботом');
+
+  if (isAdmin(user)) {
+    bot.sendMessage(chatId, 'Используйте команды для управления ботом.');
     return;
   }
-  
-  // Проверка антиспама
+
   if (isSpam(user.id)) {
-    bot.sendMessage(chatId, 
-      `⏰ Слишком часто! Можно отправлять 1 сообщение в 10 секунд.\n` +
-      `Пожалуйста, подождите немного.`
+    bot.sendMessage(
+      chatId,
+      'Слишком часто. Можно отправлять 1 сообщение в 10 секунд.'
     );
     return;
   }
-  
-  // Обработка предложений от пользователей
+
   processSuggestion(msg);
 });
 
-// Функция рассылки
-function broadcastMessage(message, adminChatId) {
+function broadcastMessage(message, adminId) {
   if (subscribers.size === 0) {
-    bot.sendMessage(adminChatId, '❌ Нет подписчиков для рассылки.');
+    bot.sendMessage(adminId, 'Нет подписчиков для рассылки.');
     return;
   }
-  
+
   let successCount = 0;
   let failCount = 0;
   let processed = 0;
-  
-  bot.sendMessage(adminChatId, `📢 Начинаю рассылку для ${subscribers.size} пользователей...`);
-  
-  subscribers.forEach(subscriberId => {
-    bot.sendMessage(subscriberId, 
-      `📢 Рассылка от администратора:\n\n${message}`
-    ).then(() => {
-      successCount++;
-    }).catch(err => {
-      failCount++;
-      // Если пользователь заблокировал бота, удаляем из подписчиков
-      if (err.response && err.response.statusCode === 403) {
-        subscribers.delete(subscriberId);
-      }
-    }).finally(() => {
-      processed++;
-      
-      // Когда все сообщения обработаны, отправляем отчет
-      if (processed === subscribers.size) {
-        bot.sendMessage(adminChatId,
-          `📢 Результаты рассылки:\n\n` +
-          `✅ Успешно: ${successCount}\n` +
-          `❌ Не доставлено: ${failCount}\n` +
-          `👥 Осталось подписчиков: ${subscribers.size}`
-        );
-      }
-    });
+  const total = subscribers.size;
+
+  bot.sendMessage(adminId, `Начинаю рассылку для ${total} пользователей...`);
+
+  subscribers.forEach((subscriberId) => {
+    bot
+      .sendMessage(subscriberId, `Рассылка от администратора:\n\n${message}`)
+      .then(() => {
+        successCount += 1;
+      })
+      .catch((err) => {
+        failCount += 1;
+        if (err.response && err.response.statusCode === 403) {
+          subscribers.delete(subscriberId);
+        }
+      })
+      .finally(() => {
+        processed += 1;
+        if (processed === total) {
+          bot.sendMessage(
+            adminId,
+            'Результаты рассылки:\n\n' +
+              `Успешно: ${successCount}\n` +
+              `Не доставлено: ${failCount}\n` +
+              `Осталось подписчиков: ${subscribers.size}`
+          );
+        }
+      });
   });
 }
 
-// Обработка предложений от пользователей
 function processSuggestion(msg) {
   const chatId = msg.chat.id;
   const user = msg.from;
-  
-  // Формируем информацию о пользователе
-  let userInfo = `🎯 НОВОЕ ПРЕДЛОЖЕНИЕ\n┌─────────────────\n`;
-  userInfo += `│ 👤 От: ${user.first_name || ''} ${user.last_name || ''}\n`;
-  userInfo += `│ 🆔 ID: ${user.id}\n`;
-  if (user.username) userInfo += `│ 📱 @${user.username}\n`;
-  userInfo += `│ 🕐 ${new Date().toLocaleString('ru-RU')}\n`;
-  userInfo += `│ 📰 Подписан: ${subscribers.has(chatId) ? '✅' : '❌'}\n`;
-  userInfo += `└─────────────────`;
-  
+
+  let userInfo = 'НОВОЕ ПРЕДЛОЖЕНИЕ\n';
+  userInfo += `От: ${user.first_name || ''} ${user.last_name || ''}\n`;
+  userInfo += `ID: ${user.id}\n`;
+  if (user.username) userInfo += `@${user.username}\n`;
+  userInfo += `Время: ${new Date().toLocaleString('ru-RU')}\n`;
+  userInfo += `Подписан: ${subscribers.has(chatId) ? 'да' : 'нет'}`;
+
   let forwardMessage = userInfo;
-  
-  // Обработка разных типов сообщений
+
   if (msg.text) {
-    forwardMessage += `\n\n💬 Сообщение:\n${msg.text}`;
+    forwardMessage += `\n\nСообщение:\n${msg.text}`;
   } else if (msg.photo) {
-    forwardMessage += `\n\n🖼 Фото`;
+    forwardMessage += '\n\nФото';
   } else if (msg.video) {
-    forwardMessage += `\n\n🎥 Видео`;
+    forwardMessage += '\n\nВидео';
   } else if (msg.document) {
-    forwardMessage += `\n\n📄 Документ: ${msg.document.file_name}`;
+    forwardMessage += `\n\nДокумент: ${msg.document.file_name}`;
   } else if (msg.voice) {
-    forwardMessage += `\n\n🎤 Голосовое сообщение`;
+    forwardMessage += '\n\nГолосовое сообщение';
   } else if (msg.sticker) {
-    forwardMessage += `\n\n😊 Стикер`;
+    forwardMessage += '\n\nСтикер';
   } else {
-    forwardMessage += `\n\n📎 Медиа-файл`;
+    forwardMessage += '\n\nМедиа-файл';
   }
-  
-  // Кнопка для ответа
+
   const replyKeyboard = {
-    inline_keyboard: [[
-      {
-        text: '💬 Ответить',
-        callback_data: `reply_${user.id}`
-      }
-    ]]
+    inline_keyboard: [[{ text: 'Ответить', callback_data: `reply_${user.id}` }]],
   };
-  
-  // Отправляем админу
+
   if (adminChatId) {
-    bot.sendMessage(adminChatId, forwardMessage, {
-      reply_markup: replyKeyboard
-    });
-    
-    // Пересылаем медиа-файлы
+    bot.sendMessage(adminChatId, forwardMessage, { reply_markup: replyKeyboard });
     if (!msg.text) {
       bot.forwardMessage(adminChatId, chatId, msg.message_id);
     }
   }
-  
-  // Подтверждение пользователю
-  bot.sendMessage(chatId, 
-    `✅ Спасибо! Ваше предложение отправлено!\n\n` +
-    `Мы рассмотрим его в ближайшее время.`
-  );
-  
-  // Логируем в консоль
-  console.log(`Новое предложение от ${user.first_name} (ID: ${user.id}) в ${new Date().toLocaleString()}`);
+
+  bot.sendMessage(chatId, 'Спасибо! Предложение отправлено.');
+  console.log(`Suggestion from ${user.first_name} (${user.id})`);
 }
 
-// Обработка callback кнопок
 bot.on('callback_query', (callbackQuery) => {
   const msg = callbackQuery.message;
   const data = callbackQuery.data;
-  
+
   if (data.startsWith('reply_') && msg.chat.id === adminChatId) {
     const targetUserId = data.split('_')[1];
     userStates.set(adminChatId, { mode: 'reply', targetUserId });
-    
+
     bot.answerCallbackQuery(callbackQuery.id);
-    bot.sendMessage(adminChatId, 
-      `💬 Введите ответ для пользователя (ID: ${targetUserId}):\n\n` +
-      `❌ /cancel - отмена`
+    bot.sendMessage(
+      adminChatId,
+      `Введите ответ для пользователя (ID: ${targetUserId}).\n/cancel — отмена`
     );
   }
 });
 
-// Обработка ошибок
 bot.on('polling_error', (error) => {
-  console.log('Ошибка polling:', error.code);
+  console.error('Polling error:', error.code || error.message);
 });
 
-console.log('🚀 Бот запущен с антиспамом и рассылкой!');
+console.log('Proposal bot started.');
